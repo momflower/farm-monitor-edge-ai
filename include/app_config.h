@@ -2,8 +2,8 @@
 #include <Arduino.h>
 
 // ===== Wi-Fi =====
-static constexpr const char* WIFI_SSID = "KT_GiGA_D665";
-static constexpr const char* WIFI_PASSWORD = "cage3cb196";
+static constexpr const char* WIFI_SSID = "mfg-garden";
+static constexpr const char* WIFI_PASSWORD = "garden2966!";
 
 // ===== Server =====
 #ifndef SERVER_ADDRESS
@@ -59,22 +59,28 @@ static constexpr MonitoredActuatorConfig MONITORED_ACTUATORS[] = {
 };
 static constexpr size_t MONITORED_ACTUATOR_COUNT = sizeof(MONITORED_ACTUATORS) / sizeof(MONITORED_ACTUATORS[0]);
 
-// ===== Display (1.85" circle GC9A01, 360×360) =====
-static constexpr int LCD_SPI_SCLK = 12;
-static constexpr int LCD_SPI_MOSI = 11;
-static constexpr int LCD_SPI_MISO = -1;
-static constexpr int LCD_SPI_CS   = 10;
-static constexpr int LCD_SPI_DC   = 8;
-static constexpr int LCD_RST      = 14;
-static constexpr int LCD_BL       = 9;
-static constexpr int LCD_WIDTH    = 360;
-static constexpr int LCD_HEIGHT   = 360;
-static constexpr int LCD_ROTATION = 0;
+// ===== Display — ESP32-S3-Touch-LCD-1.85C, ST77916 QSPI, 360×360 =====
+static constexpr int LCD_QSPI_CLK  = 40;
+static constexpr int LCD_QSPI_CS   = 21;
+static constexpr int LCD_QSPI_D0   = 46;
+static constexpr int LCD_QSPI_D1   = 45;
+static constexpr int LCD_QSPI_D2   = 42;
+static constexpr int LCD_QSPI_D3   = 41;
+static constexpr int LCD_BL        = 5;
+static constexpr int LCD_WIDTH     = 360;
+static constexpr int LCD_HEIGHT    = 360;
+static constexpr int LCD_ROTATION  = 0;
 
-// ===== Audio =====
-static constexpr bool ENABLE_VOICE_PLAYBACK = false;
-static constexpr bool ENABLE_BEEP_FALLBACK  = true;
-static constexpr int  BUZZER_PIN            = -1;
+// ===== Audio — ES8311 codec + NS4150B amp (V2 board) =====
+// Waveshare ESP32-S3-Touch-LCD-1.85C (Speaker Box V2, No Batt)
+static constexpr int AUDIO_I2S_MCLK = 2;    // MCLK → ES8311
+static constexpr int AUDIO_I2S_BCLK = 48;   // BCK
+static constexpr int AUDIO_I2S_WS   = 38;   // LRCK
+static constexpr int AUDIO_I2S_DOUT = 47;   // DOUT → ES8311 SDIN
+static constexpr int AUDIO_PA_CTRL  = 15;   // NS4150B amp enable (HIGH = on)
+static constexpr int ES8311_SDA     = 11;   // I2C SDA to ES8311
+static constexpr int ES8311_SCL     = 10;   // I2C SCL to ES8311
+static constexpr uint8_t ES8311_ADDR = 0x18;
 
 static inline String makeServerUrl(const char* path) {
   return String(SERVER_ADDRESS) + String(path);

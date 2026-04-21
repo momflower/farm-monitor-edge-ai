@@ -81,11 +81,11 @@ bool applyFromServer(int deviceId, const String& label, const String& name,
 
   bool changed = false;
 
-  // Update static metadata on first registration (or if previously blank)
-  if (s->label.isEmpty()) { s->label = label; changed = true; }
-  if (s->name.isEmpty())  { s->name  = name;  changed = true; }
-  if (s->zone.isEmpty())  { s->zone  = zone; }
-  if (s->type.isEmpty())  { s->type  = type; }
+  // Update static metadata only when upgrading from blank to non-blank
+  if (s->label.isEmpty() && !label.isEmpty()) { s->label = label; changed = true; }
+  if (s->name.isEmpty()  && !name.isEmpty())  { s->name  = name;  changed = true; }
+  if (s->zone.isEmpty()  && !zone.isEmpty())  { s->zone  = zone; }
+  if (s->type.isEmpty()  && !type.isEmpty())  { s->type  = type; }
 
   // Detect operational state change
   changed |= (s->command      != command)      ||

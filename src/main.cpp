@@ -8,7 +8,8 @@
 #include "server_poll_bridge.h"
 
 namespace {
-unsigned long g_lastUiRefresh = 0;
+unsigned long g_lastUiRefresh  = 0;
+bool          g_greetingPlayed = false;
 
 void printStates() {
   const auto* st = ActuatorRegistry::states();
@@ -39,6 +40,16 @@ void setup() {
 }
 
 void loop() {
+  // Play boot greeting on first loop() — serial is guaranteed connected by now
+  if (!g_greetingPlayed) {
+    g_greetingPlayed = true;
+    unsigned long t0 = millis();
+    Serial.printf("[MAIN] greeting start t=%lu\n", t0);
+    AudioManager::speak(VoiceEvent::Query);
+    unsigned long t1 = millis();
+    Serial.printf("[MAIN] greeting done  t=%lu  elapsed=%lu ms\n", t1, t1 - t0);
+  }
+
   WifiManager::loop();
 
   // Server polling — runs every SERVER_POLL_INTERVAL_MS when Wi-Fi is ready
