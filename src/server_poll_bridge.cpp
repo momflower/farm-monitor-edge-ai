@@ -23,10 +23,10 @@ static String generateLabel(const String& name, const String& type, int deviceId
 }
 
 namespace {
-unsigned long g_lastPollMs   = 0;
+unsigned long g_lastPollMs = 0;
 String        g_lastError;
-int           g_lastCount    = 0;
-bool          g_firstPoll    = true;
+int           g_lastCount  = 0;
+bool          g_firstPoll  = true;
 }
 
 namespace ServerPollBridge {
@@ -45,19 +45,20 @@ void loop() {
   g_lastPollMs = millis();
   if (g_firstPoll) AudioManager::speak(VoiceEvent::Query);
 
-  // --- HTTP GET ---
+  // --- POST selectAreaMCUBoardPOST ---
   HTTPClient http;
-  String url = makeServerUrl(API_ACTUATOR_LIST_GET);
-  url += "?farmIndex=" + String(KOAT_FARM_INDEX);
+  const String url  = makeServerUrl(API_DEVICE_COMMAND_POST);
+  const String body = "farmIndex=" + String(KOAT_FARM_INDEX);
 
-  Serial.println("[POLL] GET " + url);
+  Serial.println("[POLL] POST " + url + " | " + body);
   http.begin(url);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   http.addHeader("AppKey", APP_KEY);
   http.setTimeout(HTTP_TIMEOUT_MS);
 
-  const int code = http.GET();
-  String body;
-  if (code == HTTP_CODE_OK) body = http.getString();
+  const int code   = http.POST(body);
+  String    payload;
+  if (code == HTTP_CODE_OK) payload = http.getString();
   http.end();
 
   if (code != HTTP_CODE_OK) {
@@ -66,15 +67,15 @@ void loop() {
     AudioManager::speak(VoiceEvent::Fail);
     return;
   }
-  Serial.printf("[POLL] %d bytes received\n", body.length());
+  Serial.printf("[POLL] %d bytes received\n", payload.length());
 
   // --- JSON parse ---
-  // Supports three shapes:
+  // Supports three response shapes:
   //   [ {...}, ... ]
-  //   {"data":   [ {...}, ... ]}
-  //   {"actuators": [ {...}, ... ]}
+  //   {"data":     [ {...}, ... ]}
+  //   {"actuators":[ {...}, ... ]}
   JsonDocument doc;
-  const DeserializationError err = deserializeJson(doc, body);
+  const DeserializationError err = deserializeJson(doc, payload);
   if (err) {
     g_lastError = String("JSON:") + err.c_str();
     Serial.println("[POLL] " + g_lastError);
@@ -83,9 +84,9 @@ void loop() {
   }
 
   JsonArray arr;
-  if      (doc.is<JsonArray>())             arr = doc.as<JsonArray>();
-  else if (doc["data"].is<JsonArray>())     arr = doc["data"].as<JsonArray>();
-  else if (doc["actuators"].is<JsonArray>())arr = doc["actuators"].as<JsonArray>();
+  if      (doc.is<JsonArray>())              arr = doc.as<JsonArray>();
+  else if (doc["data"].is<JsonArray>())      arr = doc["data"].as<JsonArray>();
+  else if (doc["actuators"].is<JsonArray>()) arr = doc["actuators"].as<JsonArray>();
   else {
     g_lastError = "unexpected JSON shape";
     Serial.println("[POLL] " + g_lastError);
@@ -94,27 +95,27 @@ void loop() {
   }
 
   // --- Apply to registry ---
-  g_lastCount   = 0;
+  g_lastCount    = 0;
   bool anyChange = false;
 
   for (JsonObject obj : arr) {
-    // Accept either "id" or "serial" as device identifier
     const int id = obj["id"].is<JsonInteger>()     ? (int)obj["id"].as<JsonInteger>()
                  : obj["serial"].is<JsonInteger>() ? (int)obj["serial"].as<JsonInteger>()
                  : 0;
     if (id <= 0) continue;
 
-    const String name       = obj["name"]       | "";
-    const String zone       = obj["zone"]       | "";
-    const String type       = obj["type"]       | "";
-    const String srvStatus  = obj["status"]     | "normal";
-    const uint16_t command  = obj["command"].is<JsonInteger>()   ? (uint16_t)(int)obj["command"].as<JsonInteger>()   : 0;
-    const uint32_t remain   = obj["remainSec"].is<JsonInteger>() ? (uint32_t)(int)obj["remainSec"].as<JsonInteger>() : 0;
+    const String   name      = obj["name"]      | "";
+    const String   zone      = obj["zone"]      | "";
+    const String   type      = obj["type"]      | "";
+    const String   srvStatus = obj["status"]    | "normal";
+    const uint16_t command   = obj["command"].is<JsonInteger>()   ? (uint16_t)(int)obj["command"].as<JsonInteger>()   : 0;
+    const uint32_t remain    = obj["remainSec"].is<JsonInteger>() ? (uint32_t)(int)obj["remainSec"].as<JsonInteger>() : 0;
 
     const String label = generateLabel(name, type, id);
     anyChange |= ActuatorRegistry::applyFromServer(id, label, name, zone, type, srvStatus, command, remain);
     ++g_lastCount;
-    Serial.printf("[POLL]   id=%d label=%s cmd=%u remain=%lu\n", id, label.c_str(), (unsigned)command, (unsigned long)remain);
+    Serial.printf("[POLL]   id=%d label=%s cmd=%u remain=%lu\n",
+                  id, label.c_str(), (unsigned)command, (unsigned long)remain);
   }
 
   if (anyChange) AudioManager::speak(VoiceEvent::Update);
@@ -123,7 +124,7 @@ void loop() {
   Serial.printf("[POLL] Done: %d actuators, changed=%d\n", g_lastCount, anyChange ? 1 : 0);
 }
 
-String lastError()       { return g_lastError; }
+String lastError()        { return g_lastError; }
 int    lastActuatorCount(){ return g_lastCount;  }
 
 }

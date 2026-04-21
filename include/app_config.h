@@ -13,16 +13,16 @@ static constexpr const char* WIFI_PASSWORD = "cage3cb196";
 static constexpr const char* APP_KEY       = "f54aa895-0aca-4084-9b10-aecaff878af1";
 static constexpr int          KOAT_FARM_INDEX = 20;
 
+// Actuator list query endpoint (server → MCU, POST)
+// POST body: farmIndex={KOAT_FARM_INDEX}
+// Returns JSON array or {"data":[...]} of actuator objects:
+//   id(int), name(str), zone(str), type(str), status(str), command(int), remainSec(int)
+static constexpr const char* API_DEVICE_COMMAND_POST = "/admin/device/selectAreaMCUBoardPOST";
+
 // Legacy reporting endpoints (MCU → server)
 static constexpr const char* API_DEVICE_STATUS_POST          = "/admin/device/updateMCUBoardPOST";
 static constexpr const char* API_DEVICE_STANDARD_STATUS_POST = "/admin/device/updateMCUBoardPOST/StandardStatus";
 static constexpr const char* API_DEVICE_BOARD_STATUS_POST    = "/admin/device/updateMCUBoardPOST/BoardStatus";
-
-// Actuator list polling endpoint (server → MCU)
-// GET {SERVER_ADDRESS}{API_ACTUATOR_LIST_GET}?farmIndex={KOAT_FARM_INDEX}
-// Expected JSON: array or {"data":[...]} of actuator objects with fields:
-//   id(int), name(str), zone(str), type(str), status(str), command(int), remainSec(int)
-static constexpr const char* API_ACTUATOR_LIST_GET = "/admin/device/list";
 
 // ===== Timing =====
 static constexpr uint32_t WIFI_RETRY_INTERVAL_MS  = 5000;
