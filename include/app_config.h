@@ -9,15 +9,36 @@ static constexpr const char* WIFI_PASSWORD = "garden2966!";
 #ifndef SERVER_ADDRESS
 #define SERVER_ADDRESS "http://119.207.62.14/spring"
 #endif
+// Edge services (farm info / sensor / reservation) are on port 8080.
+#ifndef EDGE_SERVER_ADDRESS
+#define EDGE_SERVER_ADDRESS "http://119.207.62.14:8080"
+#endif
 
 static constexpr const char* APP_KEY       = "f54aa895-0aca-4084-9b10-aecaff878af1";
 static constexpr int          KOAT_FARM_INDEX = 20;
+// Edge services (port 8080) resolve by the *numeric* farm id — the dashboard's
+// short-id like "JxjXno6X" is a frontend-only alias that maps to this integer.
+// NOTE: farm 4 currently has no sensor data; using 20 which has full readings.
+static constexpr int          EDGE_FARM_INDEX = 20;
 
 // Actuator list query endpoint (server → MCU, POST)
 // POST body: farmIndex={KOAT_FARM_INDEX}
 // Returns JSON array or {"data":[...]} of actuator objects:
 //   id(int), name(str), zone(str), type(str), status(str), command(int), remainSec(int)
 static constexpr const char* API_DEVICE_COMMAND_POST = "/admin/device/selectAreaMCUBoardPOST";
+
+// Edge services (port 8080). Probed schema:
+//   GET {base}/admin/edge/farm/sensor/{EDGE_FARM_INDEX}          → JSON array
+//   GET {base}/admin/edge/farm/reservation/list/{EDGE_FARM_INDEX} → JSON array
+//   POST {base}/admin/edge/farm/{EDGE_FARM_INDEX}                 → farm info object
+//   headers: AppKey (required)
+// The farmIndex is the *numeric* farm id (e.g. 4), not the dashboard slug.
+static constexpr const char* API_EDGE_FARM_SENSOR_GET_BASE      = "/admin/edge/farm/sensor/";
+static constexpr const char* API_EDGE_FARM_RESERVATION_GET_BASE = "/admin/edge/farm/reservation/list/";
+static constexpr const char* API_EDGE_FARM_INFO_POST_BASE       = "/admin/edge/farm/";
+
+// Sensor boot-splash duration before handing over to actuator monitoring.
+static constexpr uint32_t SENSOR_SPLASH_MS = 5000;
 
 // Legacy reporting endpoints (MCU → server)
 static constexpr const char* API_DEVICE_STATUS_POST          = "/admin/device/updateMCUBoardPOST";
@@ -84,4 +105,8 @@ static constexpr uint8_t ES8311_ADDR = 0x18;
 
 static inline String makeServerUrl(const char* path) {
   return String(SERVER_ADDRESS) + String(path);
+}
+
+static inline String makeEdgeUrl(const char* path) {
+  return String(EDGE_SERVER_ADDRESS) + String(path);
 }

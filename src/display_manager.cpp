@@ -109,11 +109,83 @@ void begin() {
   gfx->fillScreen(C_BLACK);
 }
 
+void drawGreeting() {
+  gfx->fillScreen(C_BLACK);
+  drawCentered("SLOWER",       130, 4, C_CYAN);
+  drawCentered("MONITOR",      185, 3, C_CYAN);
+  drawCentered("-- Hello --",  235, 2, C_YELLOW);
+}
+
 void drawBoot() {
   gfx->fillScreen(C_BLACK);
   drawCentered("SLOWER",    130, 3, C_CYAN);
   drawCentered("MONITOR",   170, 3, C_CYAN);
   drawCentered("Booting...",210, 2, C_WHITE);
+}
+
+namespace {
+// Format a sensor reading — "--" if NaN, 1-decimal float otherwise.
+String fmtSensor(float v, const char* unit = "") {
+  if (isnan(v)) return "--";
+  String s = String(v, 1);
+  if (unit && unit[0]) s += unit;
+  return s;
+}
+}  // namespace
+
+void drawSensors(const SensorSnapshot& snap) {
+  gfx->fillScreen(C_BLACK);
+
+  // Header
+  drawCentered("SENSORS", 45, 3, C_CYAN);
+  gfx->drawFastHLine(30, 65, LCD_WIDTH - 60, C_DKGREY);
+
+  if (!snap.valid) {
+    drawCentered("No readings", 170, 2, C_YELLOW);
+    if (snap.error.length() > 0) {
+      drawCentered(snap.error, 210, 1, C_LTGREY);
+    }
+    gfx->drawFastHLine(30, 272, LCD_WIDTH - 60, C_DKGREY);
+    drawCentered("continuing to monitor...", 284, 1, C_LTGREY);
+    return;
+  }
+
+  // Two-column layout: label left, value right (cell 150px wide).
+  // 6 rows at y = 90, 120, 150, 180, 210, 240
+  struct Row { const char* label; float value; const char* unit; };
+  const Row rows[6] = {
+    {"Temp 1", snap.temp1, " C"},
+    {"Temp 2", snap.temp2, " C"},
+    {"Humi 1", snap.hum1,  " %"},
+    {"Humi 2", snap.hum2,  " %"},
+    {"Rain",   snap.rain,  ""  },
+    {"Flow",   snap.flow,  ""  },
+  };
+
+  constexpr int LABEL_X = 80;
+  constexpr int VALUE_RX = 280;        // right edge for value text
+  constexpr int Y0 = 90;
+  constexpr int ROW_H = 30;
+
+  for (int i = 0; i < 6; ++i) {
+    const int y = Y0 + i * ROW_H;
+    gfx->setTextSize(2);
+    gfx->setTextColor(C_WHITE, C_BLACK);
+    gfx->setCursor(LABEL_X, y);
+    gfx->print(rows[i].label);
+
+    const String val = fmtSensor(rows[i].value, rows[i].unit);
+    const uint16_t col = isnan(rows[i].value) ? C_DKGREY : C_GREEN;
+    gfx->setTextColor(col, C_BLACK);
+    gfx->setCursor(VALUE_RX - tw(val, 2), y);
+    gfx->print(val);
+  }
+
+  gfx->drawFastHLine(30, 272, LCD_WIDTH - 60, C_DKGREY);
+  String footer = snap.farmName.length() > 0
+                      ? snap.farmName
+                      : String("edge ") + EDGE_FARM_INDEX;
+  drawCentered(footer, 284, 1, C_LTGREY);
 }
 
 void drawPolling(const String& ip) {
@@ -141,13 +213,13 @@ void drawError(const String& msg) {
 void drawStates(const ActuatorState* states, size_t count, const String& footer) {
   gfx->fillScreen(C_BLACK);
 
-  // Header (y=28 → 10px lower than the original y=18)
+  // Header centred at y=33 (5px lower than prior y=28)
   gfx->setTextSize(2);
   gfx->setTextColor(C_CYAN, C_BLACK);
   const char* hdr = "SLOWER MONITOR";
-  gfx->setCursor((LCD_WIDTH - tw(hdr, 2)) / 2, 28 - 8);
+  gfx->setCursor((LCD_WIDTH - tw(hdr, 2)) / 2, 33 - 8);
   gfx->print(hdr);
-  gfx->drawFastHLine(30, 45, LCD_WIDTH - 60, C_DKGREY);
+  gfx->drawFastHLine(30, 50, LCD_WIDTH - 60, C_DKGREY);
 
   if (count == 0) {
     drawCentered("No actuators", 180, 2, C_YELLOW);

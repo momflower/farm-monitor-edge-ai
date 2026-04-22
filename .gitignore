@@ -5,3 +5,6 @@
 .vscode/ipch
 .claude/
 platformio.zip
+# Intermediate TTS audio — generated from scripts/gen_greeting_tts.py.
+# The .h headers under include/assets/ are the real build artifacts.
+scripts/assets/

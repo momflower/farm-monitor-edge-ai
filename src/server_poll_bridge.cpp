@@ -40,10 +40,16 @@ static uint32_t toRemainSec(uint16_t cmd, int grad, int offset, int valuePeriod)
 }
 
 namespace {
-unsigned long g_lastPollMs = 0;
+unsigned long g_lastPollMs  = 0;
 String        g_lastError;
-int           g_lastCount  = 0;
-bool          g_firstPoll  = true;
+int           g_lastCount   = 0;
+bool          g_firstPoll   = true;
+
+// Voice announcements are produced for these switches (in monitored order).
+// Index 0 → SW1 (spoken as "1번"), index 1 → SW2, index 2 → SW3.
+constexpr int VOICE_SWITCH_IDS[] = {222, 223, 224};
+constexpr int VOICE_SWITCH_COUNT = sizeof(VOICE_SWITCH_IDS) / sizeof(VOICE_SWITCH_IDS[0]);
+int g_swLastCmd[VOICE_SWITCH_COUNT];   // -1 = unknown; 0 = off (STOP); 1 = on (any non-STOP)
 }
 
 namespace ServerPollBridge {
@@ -53,6 +59,7 @@ void begin() {
   g_lastError  = "";
   g_lastCount  = 0;
   g_firstPoll  = true;
+  for (int i = 0; i < VOICE_SWITCH_COUNT; ++i) g_swLastCmd[i] = -1;
 }
 
 void loop() {
@@ -161,7 +168,23 @@ void loop() {
         "normal", KsxCommand::STOP, 0);
   }
 
-  if (anyChange) AudioManager::speak(VoiceEvent::Update);
+  // SW1-SW3 spoken on/off transitions. First observation is silent so the
+  // current state right after boot doesn't re-announce itself.
+  bool anySwitchSpoke = false;
+  for (int i = 0; i < VOICE_SWITCH_COUNT; ++i) {
+    const ActuatorState* s = ActuatorRegistry::findByDeviceId(VOICE_SWITCH_IDS[i]);
+    if (!s) continue;
+    const int now = (s->command != KsxCommand::STOP) ? 1 : 0;
+    if (g_swLastCmd[i] != -1 && g_swLastCmd[i] != now) {
+      AudioManager::playSwitchStateVoice(i + 1, now == 1);
+      anySwitchSpoke = true;
+    }
+    g_swLastCmd[i] = now;
+  }
+
+  // Generic update tone covers any change that wasn't already spoken.
+  if (anyChange && !anySwitchSpoke) AudioManager::speak(VoiceEvent::Update);
+
   g_lastError = "";
   g_firstPoll = false;
   Serial.printf("[POLL] Done: %d active, changed=%d\n", g_lastCount, anyChange ? 1 : 0);

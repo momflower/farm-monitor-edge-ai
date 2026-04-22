@@ -6,13 +6,20 @@
 #include "ESP_I2S.h"
 #include "I2C_Driver.h"
 #include "app_config.h"
+#include "assets/greeting_pcm.h"
+#include "assets/num_1_pcm.h"
+#include "assets/num_2_pcm.h"
+#include "assets/num_3_pcm.h"
+#include "assets/state_off_pcm.h"
+#include "assets/state_on_pcm.h"
+#include "assets/temp_high_pcm.h"
 #include "es8311.h"
 
 namespace {
 constexpr uint32_t SAMPLE_RATE_HZ = 24000;
 constexpr uint32_t MCLK_MULTIPLE  = 256;
 constexpr uint32_t MCLK_FREQ_HZ   = SAMPLE_RATE_HZ * MCLK_MULTIPLE;
-constexpr int      VOICE_VOLUME   = 50;
+constexpr int      VOICE_VOLUME   = 65;
 constexpr int      DEFAULT_AMP    = 12000;
 
 I2SClass         g_i2s;
@@ -154,16 +161,59 @@ void begin() {
     if (g_esHandle) {
       es8311_register_dump(g_esHandle);
     }
-
-    Serial.println("[AUDIO] diag tone start");
-    playSquareTone(1000, 500);
-    playSilence(200);
-    Serial.println("[AUDIO] diag tone done");
   }
 
   Serial.printf("[AUDIO] begin done  i2s=%d codec=%d\n",
                 g_i2sReady ? 1 : 0,
                 g_codecReady ? 1 : 0);
+}
+
+void playPcm(const int16_t* samples, size_t count) {
+  if (!g_i2sReady || !g_codecReady) {
+    Serial.println("[VOICE] playPcm skipped - audio not ready");
+    return;
+  }
+  constexpr size_t CHUNK = 512;
+  size_t written = 0;
+  while (written < count) {
+    const size_t n = (count - written) > CHUNK ? CHUNK : (count - written);
+    g_i2s.write(reinterpret_cast<const uint8_t*>(samples + written),
+                n * sizeof(int16_t));
+    written += n;
+  }
+}
+
+void playGreetingVoice() {
+  static_assert(GREETING_PCM_SAMPLE_RATE == 24000,
+                "greeting PCM must match I2S sample rate");
+  Serial.printf("[VOICE] greeting wav %u samples (%.2fs)\n",
+                (unsigned)GREETING_PCM_SAMPLES,
+                (float)GREETING_PCM_SAMPLES / (float)GREETING_PCM_SAMPLE_RATE);
+  playPcm(GREETING_PCM, GREETING_PCM_SAMPLES);
+}
+
+void playTempHighVoice() {
+  static_assert(TEMP_HIGH_PCM_SAMPLE_RATE == 24000,
+                "temp_high PCM must match I2S sample rate");
+  Serial.println("[VOICE] temp high");
+  playPcm(TEMP_HIGH_PCM, TEMP_HIGH_PCM_SAMPLES);
+}
+
+void playSwitchStateVoice(int switchNumber, bool isOn) {
+  const int16_t* numPcm      = nullptr;
+  size_t         numSamples  = 0;
+  switch (switchNumber) {
+    case 1: numPcm = NUM_1_PCM; numSamples = NUM_1_PCM_SAMPLES; break;
+    case 2: numPcm = NUM_2_PCM; numSamples = NUM_2_PCM_SAMPLES; break;
+    case 3: numPcm = NUM_3_PCM; numSamples = NUM_3_PCM_SAMPLES; break;
+    default:
+      Serial.printf("[VOICE] switch #%d not supported\n", switchNumber);
+      return;
+  }
+  Serial.printf("[VOICE] switch #%d %s\n", switchNumber, isOn ? "on" : "off");
+  playPcm(numPcm, numSamples);
+  if (isOn) playPcm(STATE_ON_PCM,  STATE_ON_PCM_SAMPLES);
+  else      playPcm(STATE_OFF_PCM, STATE_OFF_PCM_SAMPLES);
 }
 
 void speak(VoiceEvent event) {

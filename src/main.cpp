@@ -5,11 +5,14 @@
 #include "audio_manager.h"
 #include "actuator_registry.h"
 #include "local_state_bridge.h"
+#include "sensor_poll_bridge.h"
 #include "server_poll_bridge.h"
 
 namespace {
 unsigned long g_lastUiRefresh  = 0;
-bool          g_greetingPlayed = false;
+bool          g_sensorSplashDone = false;
+unsigned long g_wifiWaitStartMs  = 0;
+constexpr unsigned long WIFI_WAIT_TIMEOUT_MS = 20000;  // give up splash after 20 s
 
 void printStates() {
   const auto* st = ActuatorRegistry::states();
@@ -27,30 +30,55 @@ void printStates() {
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
   Serial.println("\n=== Farm Monitor (server polling) Start ===");
 
   DisplayManager::begin();
-  DisplayManager::drawBoot();
+  DisplayManager::drawGreeting();
+
   AudioManager::begin();
+  delay(150);  // let amp settle after PA enable before the voiced greeting
+  AudioManager::playGreetingVoice();
+
+  DisplayManager::drawBoot();
   WifiManager::begin();
   ActuatorRegistry::begin();
   LocalStateBridge::begin();
   ServerPollBridge::begin();
+  g_wifiWaitStartMs = millis();
 }
 
 void loop() {
-  // Play boot greeting on first loop() — serial is guaranteed connected by now
-  if (!g_greetingPlayed) {
-    g_greetingPlayed = true;
-    unsigned long t0 = millis();
-    Serial.printf("[MAIN] greeting start t=%lu\n", t0);
-    AudioManager::speak(VoiceEvent::Query);
-    unsigned long t1 = millis();
-    Serial.printf("[MAIN] greeting done  t=%lu  elapsed=%lu ms\n", t1, t1 - t0);
-  }
-
   WifiManager::loop();
+
+  // One-shot sensor splash — runs after Wi-Fi connects, blocks for
+  // SENSOR_SPLASH_MS so the operator can read the values, then hands off
+  // to normal actuator polling.
+  if (!g_sensorSplashDone) {
+    if (WifiManager::ready()) {
+      Serial.println("[MAIN] sensor splash begin");
+      const SensorSnapshot snap = SensorPollBridge::fetchOnce();
+      DisplayManager::drawSensors(snap);
+
+      // Announce "온도가 높아요" while the screen is visible. Voice is ~1 s,
+      // pad the remainder so total splash time equals SENSOR_SPLASH_MS.
+      const unsigned long tSplashStart = millis();
+      AudioManager::playTempHighVoice();
+      const unsigned long voiceElapsed = millis() - tSplashStart;
+      if (voiceElapsed < SENSOR_SPLASH_MS) {
+        delay(SENSOR_SPLASH_MS - voiceElapsed);
+      }
+
+      Serial.println("[MAIN] sensor splash done");
+      g_sensorSplashDone = true;
+    } else if (millis() - g_wifiWaitStartMs > WIFI_WAIT_TIMEOUT_MS) {
+      Serial.println("[MAIN] sensor splash skipped — Wi-Fi timeout");
+      g_sensorSplashDone = true;
+    } else {
+      delay(50);
+      return;   // skip actuator polling until splash resolves one way or the other
+    }
+  }
 
   // Server polling — runs every SERVER_POLL_INTERVAL_MS when Wi-Fi is ready
   ServerPollBridge::loop();

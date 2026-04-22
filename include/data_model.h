@@ -23,3 +23,17 @@ enum class VoiceEvent {
   Update,  // State change detected
   Fail,    // Poll / parse error
 };
+
+// One-shot sensor snapshot shown during boot splash.
+// NaN means "no reading" / "sensor missing from payload".
+struct SensorSnapshot {
+  float temp1 = NAN;
+  float temp2 = NAN;
+  float hum1  = NAN;
+  float hum2  = NAN;
+  float rain  = NAN;
+  float flow  = NAN;
+  bool   valid = false;
+  String farmName;
+  String error;
+};
